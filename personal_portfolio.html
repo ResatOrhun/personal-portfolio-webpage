@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>show running-config</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #0a0d12; --panel: #11161d; --panel-2: #0d1217;
+  --line: #1f2b38; --line-soft: #161e28;
+  --blue: #049fd9; --green: #2ee6a6; --amber: #ffb454; --red: #ff5d5d;
+  --text: #cdd9e3; --muted: #5d7186;
+  --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  --sans: 'Inter', system-ui, sans-serif;
+  --maxw: 880px;
+}
+* { box-sizing: border-box; }
+html,body { margin:0; padding:0; background:var(--bg); color:var(--text); font-family:var(--sans); -webkit-font-smoothing:antialiased; }
+a { color:inherit; }
+.grid-backdrop { position:fixed; inset:0; z-index:0; background-color:var(--bg);
+  background-image:linear-gradient(var(--line-soft) 1px,transparent 1px),linear-gradient(90deg,var(--line-soft) 1px,transparent 1px);
+  background-size:42px 42px; opacity:.55; pointer-events:none; }
+
+/* boot */
+#boot { position:fixed; inset:0; z-index:50; background:#000; color:var(--green); font-family:var(--mono);
+  padding:6vh 6vw; font-size:14px; line-height:1.7; overflow-y:auto; transition:opacity .5s ease; cursor:pointer; }
+#boot.fading { opacity:0; pointer-events:none; }
+.boot-line { white-space:pre-wrap; }
+.boot-line .dim { color:#2a6e54; }
+.boot-cursor { display:inline-block; width:8px; height:14px; background:var(--green); margin-left:2px; animation:blink 1s step-end infinite; vertical-align:-2px; }
+#boot-prompt { margin-top:28px; padding-bottom:8px; display:none; }
+@keyframes blink { 50%{opacity:0;} }
+#skip-btn { position:fixed; top:18px; right:22px; z-index:51; background:rgba(46,230,166,.08);
+  border:1px solid rgba(46,230,166,.4); color:var(--green); font-family:var(--mono); font-size:12px;
+  padding:6px 12px; border-radius:4px; cursor:pointer; }
+#skip-btn:hover { background:rgba(46,230,166,.18); }
+
+/* site */
+#site { position:relative; z-index:1; opacity:0; transition:opacity .8s ease; }
+#site.visible { opacity:1; }
+.wrap { max-width:var(--maxw); margin:0 auto; padding:0 24px; }
+
+/* nav */
+.nav { position:sticky; top:0; z-index:20; background:rgba(10,13,18,.92); backdrop-filter:blur(6px); border-bottom:1px solid var(--line); }
+.nav-inner { max-width:var(--maxw); margin:0 auto; padding:10px 24px; display:flex; align-items:flex-start; gap:20px; flex-wrap:wrap; }
+.brand { display:flex; align-items:center; gap:9px; flex-shrink:0; padding-top:1px; }
+.brand-mark { width:24px; height:24px; flex-shrink:0; }
+.brand-name { font-family:var(--mono); font-size:12.5px; letter-spacing:.14em; color:var(--text); white-space:nowrap; }
+.nav-routes-col { flex:1; min-width:0; }
+.nav-label { font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:.06em; margin-bottom:6px; }
+.nav-routes { display:flex; flex-wrap:wrap; gap:4px 18px; font-family:var(--mono); font-size:12.5px; }
+.nav-route { background:none; border:none; color:var(--muted); cursor:pointer; padding:2px 0; display:flex; gap:8px; align-items:baseline; font-family:var(--mono); font-size:12.5px; }
+.nav-route .code { color:var(--blue); }
+.nav-route.active { color:var(--green); }
+.nav-route.active .code { color:var(--green); }
+.nav-route:hover { color:var(--text); }
+
+.section { padding:64px 0; border-bottom:1px solid var(--line-soft); }
+.term-block { background:var(--panel); border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+.term-titlebar { display:flex; align-items:center; gap:8px; padding:8px 14px; background:var(--panel-2); border-bottom:1px solid var(--line); font-family:var(--mono); font-size:12px; color:var(--muted); }
+.dot { width:8px; height:8px; border-radius:50%; background:var(--line); }
+.prompt-cmd { color:var(--green); }
+.term-body { padding:20px 18px; }
+.label-eyebrow { font-family:var(--mono); font-size:11.5px; letter-spacing:.08em; color:var(--blue); margin-bottom:8px; }
+.h2 { font-family:var(--mono); font-weight:800; font-size:22px; color:var(--text); margin:0 0 18px; text-transform:uppercase; }
+.prose { font-family:var(--sans); font-size:15px; line-height:1.7; }
+
+/* hero */
+.hero { padding:96px 0 64px; }
+.hero-eyebrow { font-family:var(--mono); color:var(--green); font-size:13px; letter-spacing:.08em; margin-bottom:14px; }
+.hero-eyebrow::before { content:'> '; color:var(--muted); }
+.hero-name { font-family:var(--mono); font-weight:800; font-size:clamp(32px,6vw,52px); line-height:1.1; margin:0 0 10px; }
+.hero-role { font-family:var(--sans); font-size:17px; color:var(--muted); max-width:520px; line-height:1.6; margin-bottom:22px; }
+.hero-tags { display:flex; gap:10px; flex-wrap:wrap; }
+.tag { font-family:var(--mono); font-size:12px; padding:5px 10px; border:1px solid var(--line); border-radius:4px; background:var(--panel); }
+.tag.up { color:var(--green); border-color:rgba(46,230,166,.3); }
+.tag.amber { color:var(--amber); border-color:rgba(255,180,84,.3); }
+
+/* experience */
+.syslog-line { font-family:var(--mono); font-size:12.5px; color:var(--green); margin-bottom:14px; }
+.syslog-line .ts { color:var(--muted); }
+.exp-org { font-family:var(--mono); font-weight:700; color:var(--blue); font-size:14px; }
+.exp-meta { font-family:var(--mono); font-size:12px; color:var(--muted); margin-bottom:14px; }
+.bullets { margin:0; padding-left:18px; }
+.bullets li { margin-bottom:10px; line-height:1.6; font-size:14.5px; }
+
+/* about */
+.kv-row { display:grid; grid-template-columns:130px 1fr; gap:4px 14px; font-size:14px; padding:6px 0; border-bottom:1px dashed var(--line-soft); }
+.kv-row .k { font-family:var(--mono); color:var(--muted); font-size:12.5px; }
+.focus-chip-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+
+/* projects */
+.project-card { margin-bottom:26px; }
+.project-grid { display:grid; grid-template-columns:1fr 280px; gap:22px; align-items:start; }
+@media (max-width:720px){ .project-grid{ grid-template-columns:1fr; } }
+.diagram-wrap { background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:10px; }
+.diagram-caption { font-family:var(--mono); font-size:10.5px; color:var(--muted); text-align:center; margin-top:6px; }
+.feature-list { margin:12px 0 0; padding-left:0; list-style:none; }
+.feature-list li { font-size:13.5px; line-height:1.6; padding-left:16px; position:relative; margin-bottom:8px; }
+.feature-list li::before { content:'›'; color:var(--green); position:absolute; left:0; font-weight:700; }
+.verify-line { font-family:var(--mono); font-size:11.5px; color:var(--muted); margin-top:14px; padding-top:10px; border-top:1px solid var(--line-soft); }
+.verify-line .cmd { color:var(--blue); }
+
+/* skills */
+.skill-group { margin-bottom:22px; }
+.skill-group-title { font-family:var(--mono); font-size:12px; color:var(--muted); margin-bottom:10px; }
+.skill-row { display:flex; flex-wrap:wrap; gap:8px; }
+.skill-pill { font-family:var(--mono); font-size:12px; padding:6px 10px; border-radius:4px; border:1px solid var(--line); background:var(--panel-2); display:flex; align-items:center; gap:6px; }
+.skill-pill .led { width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); }
+.flowline { position:relative; height:18px; margin-bottom:18px; overflow:hidden; }
+.flowline .track { position:absolute; top:8px; left:0; right:0; height:1px; background:var(--line); }
+.flowline .packet { position:absolute; top:5px; width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:flow 4.5s linear infinite; }
+@keyframes flow { 0%{left:-2%;opacity:0;} 8%{opacity:1;} 92%{opacity:1;} 100%{left:100%;opacity:0;} }
+
+/* cert */
+.iface-table { font-family:var(--mono); font-size:12.5px; width:100%; border-collapse:collapse; }
+.iface-table th { text-align:left; color:var(--muted); font-size:11px; padding-bottom:8px; border-bottom:1px solid var(--line); }
+.iface-table td { padding:10px 0; border-bottom:1px solid var(--line-soft); }
+.led-amber { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:8px; background:var(--amber); box-shadow:0 0 8px var(--amber); animation:pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }
+
+/* contact */
+.ping-line { font-family:var(--mono); font-size:12.5px; color:var(--muted); margin-bottom:4px; }
+.ping-line .ok { color:var(--green); }
+.ping-summary { margin-top:10px; font-family:var(--mono); font-size:12.5px; }
+.contact-actions { display:flex; gap:12px; margin-top:20px; flex-wrap:wrap; }
+.btn { font-family:var(--mono); font-size:13px; padding:10px 16px; border-radius:4px; border:1px solid var(--line); background:var(--panel-2); text-decoration:none; color:var(--text); }
+.btn:hover { border-color:var(--blue); color:var(--blue); }
+.console { margin-top:28px; border-top:1px dashed var(--line); padding-top:18px; }
+.console-row { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:13px; }
+.console-row .prompt { color:var(--green); white-space:nowrap; }
+.console-row input { flex:1; background:transparent; border:none; outline:none; color:var(--text); font-family:var(--mono); font-size:13px; }
+.console-response { margin-top:8px; font-family:var(--mono); font-size:12.5px; display:none; }
+.console-response.error { color:var(--red); }
+.secret-panel { margin-top:14px; background:var(--panel-2); border:1px solid rgba(46,230,166,.35); border-radius:6px; padding:16px; font-family:var(--sans); font-size:14.5px; line-height:1.7; }
+.secret-panel .tag-line { font-family:var(--mono); color:var(--green); font-size:12px; display:block; margin-bottom:8px; }
+footer { text-align:center; padding:30px 0 50px; font-family:var(--mono); font-size:11.5px; color:var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="grid-backdrop"></div>
+
+<div id="boot">
+  <button id="skip-btn">skip intro ⏭</button>
+  <div id="boot-lines"></div>
+  <div id="boot-prompt">Press <strong>ENTER</strong> to start session_<span class="boot-cursor"></span></div>
+</div>
+
+<div id="site">
+  <nav class="nav">
+    <div class="nav-inner">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20,7 L7,33 L33,33 Z" fill="none" stroke="#049fd9" stroke-width="2.2"/>
+          <circle cx="20" cy="7" r="3.4" fill="#0a0d12" stroke="#2ee6a6" stroke-width="2"/>
+          <circle cx="7" cy="33" r="3.4" fill="#0a0d12" stroke="#5d7186" stroke-width="2"/>
+          <circle cx="33" cy="33" r="3.4" fill="#0a0d12" stroke="#5d7186" stroke-width="2"/>
+        </svg>
+        <span class="brand-name">R · O · K</span>
+      </div>
+      <div class="nav-routes-col">
+        <div class="nav-label">Router&gt; show ip route</div>
+        <div class="nav-routes">
+          <button class="nav-route" data-target="about"><span class="code">C</span><span>10.0.0.0/8</span><span>ABOUT</span></button>
+          <button class="nav-route" data-target="experience"><span class="code">C</span><span>10.0.1.0/24</span><span>EXPERIENCE</span></button>
+          <button class="nav-route" data-target="projects"><span class="code">C</span><span>10.0.2.0/24</span><span>PROJECTS</span></button>
+          <button class="nav-route" data-target="skills"><span class="code">C</span><span>10.0.3.0/24</span><span>SKILLS</span></button>
+          <button class="nav-route" data-target="contact"><span class="code">C</span><span>10.0.4.0/24</span><span>CONTACT</span></button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero wrap" id="hero">
+    <div class="hero-eyebrow">version_0</div>
+    <!-- name -->
+    <h1 class="hero-name">Resat Orhun Konak</h1>
+    <!-- ✏️ EDIT: role line -->
+    <p class="hero-role">Computer Engineering graduate from Politecnico di Torino, focused on high-availability network design and Layer 3 switching. CCNA candidate, aiming next for a Master's in Internet Engineering at PoliMi.</p>
+    <div class="hero-tags">
+      <span class="tag up">● ONLINE</span>
+      <span class="tag amber">CCNA — IN PROGRESS</span>
+      <span class="tag">AS 65000</span>
+      <span class="tag">L3 SWITCHING</span>
+    </div>
+  </header>
+
+  <section class="section wrap" id="about">
+    <div class="label-eyebrow">10.0.0.0/8 · ABOUT</div>
+    <h2 class="h2">show running-config</h2>
+    <div class="term-block">
+      <div class="term-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="prompt-cmd">Router# show running-config | section description</span></div>
+      <div class="term-body">
+        <p class="prose">Computer Engineering graduate from Politecnico di Torino, currently bridging theoretical communication systems knowledge with hands-on CCNA-level implementation. Focused on high-availability network design and Layer 3 switching fabrics, with an eye on continuing toward a Master's in Internet Engineering at PoliMi.</p>
+        <div style="margin-top:18px">
+          <div class="kv-row"><div class="k">school</div><div>Politecnico di Torino — BSc, Computer Engineering</div></div>
+          <div class="kv-row"><div class="k">uptime</div><div>September 2022 – March 2026</div></div>
+          <div class="kv-row"><div class="k">grade</div><div>88/110 graduation average</div></div>
+        </div>
+        <div style="margin-top:16px">
+          <div class="skill-group-title">special focus</div>
+          <div class="focus-chip-row">
+            <span class="tag">Network Infrastructure (Protocols, Routing, Switching)</span>
+            <span class="tag">Communication Systems Design</span>
+            <span class="tag">Computer Architecture</span>
+            <span class="tag">Applied Electronics</span>
+            <span class="tag">Digital Circuit Design</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" id="experience">
+    <div class="label-eyebrow">10.0.1.0/24 · EXPERIENCE</div>
+    <h2 class="h2">syslog — interface up</h2>
+    <div class="term-block">
+      <div class="term-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="prompt-cmd">Router# show logging | include REPLY</span></div>
+      <div class="term-body">
+        <div class="syslog-line"><span class="ts">Apr 2024 00:00:01.001:</span> %STUDENT-AMBASSADOR-5-UPDOWN: Interface REPLY-TORINO, changed state to <strong>up</strong></div>
+        <div class="exp-org">Student Ambassador — Reply, Torino</div>
+        <div class="exp-meta">April 2024 – Present</div>
+        <ul class="bullets">
+          <li>Represented the company at events, bridging the communication gap between the organization and the technical student body.</li>
+          <li>Coordinated promotional and outreach campaigns, with strict adherence to deadlines and project timelines.</li>
+          <li>Supported company initiatives by managing assigned tasks autonomously and collaborating with diverse teams to ensure successful execution of objectives.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" id="projects">
+    <div class="label-eyebrow">10.0.2.0/24 · PROJECTS</div>
+    <h2 class="h2">show running-config | section projects</h2>
+
+    <div class="project-card term-block">
+      <div class="term-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="prompt-cmd">Router# show ip bgp summary</span></div>
+      <div class="term-body">
+        <div class="project-grid">
+          <div>
+            <div class="label-eyebrow">Secure BGP Internet Edge &amp; DMZ Architecture</div>
+            <p class="prose" style="font-size:14px; margin:0 0 14px; color:var(--text);">The goal: keep the network's heartbeat to the internet alive even if a provider fails, while exposing exactly one server to the outside world — and never opening a door into anything else.</p>
+            <ul class="feature-list">
+              <li>Dual-homed internet gateway peering via eBGP with multiple upstream ISPs (AS 15169) under a local AS 65000 — if one provider link drops, traffic reroutes through the other automatically, with no manual intervention.</li>
+              <li>Dynamic route redistribution between the eBGP edge and a Multi-Area OSPF Area 0 backbone, backed by floating static routes (Administrative Distance 10) that only kick in the instant the primary path disappears.</li>
+              <li>PAT overload lets the entire internal LAN share one public IP, while a separate static NAT rule punches a single, tightly scoped hole — public traffic on TCP/80 only — straight through to the DMZ web server on VLAN 200.</li>
+              <li>A zone-based Extended ACL ("SECURE-DMZ") uses TCP flag matching (established) to allow legitimate return traffic back in, while refusing anything that looks like an attempt to hop from the DMZ into the trusted internal subnets.</li>
+            </ul>
+            <div class="verify-line">verified via <span class="cmd">show ip bgp summary / show ip access-lists</span></div>
+          </div>
+          <div>
+            <div class="diagram-wrap">
+              <svg viewBox="0 0 300 280" width="100%" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="80" cy="36" rx="55" ry="22" fill="#0d1217" stroke="#1f2b38"/>
+                <text x="80" y="33" text-anchor="middle" fill="#cdd9e3" font-family="JetBrains Mono,monospace" font-size="9">ISP-A</text>
+                <text x="80" y="44" text-anchor="middle" fill="#5d7186" font-family="JetBrains Mono,monospace" font-size="9">AS 15169</text>
+                <ellipse cx="220" cy="36" rx="55" ry="22" fill="#0d1217" stroke="#1f2b38"/>
+                <text x="220" y="33" text-anchor="middle" fill="#cdd9e3" font-family="JetBrains Mono,monospace" font-size="9">ISP-B</text>
+                <text x="220" y="44" text-anchor="middle" fill="#5d7186" font-family="JetBrains Mono,monospace" font-size="9">AS 15169</text>
+                <path d="M80,58 L150,108" stroke="#049fd9" stroke-width="2" fill="none"/>
+                <path d="M220,58 L150,108" stroke="#049fd9" stroke-width="2" fill="none"/>
+                <text x="150" y="85" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#049fd9">eBGP</text>
+                <rect x="105" y="108" width="90" height="30" rx="4" fill="#11161d" stroke="#049fd9" stroke-width="1.5"/>
+                <text x="150" y="127" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9.5" fill="#cdd9e3">EDGE-RTR · AS65000</text>
+                <path d="M150,138 L150,168" stroke="#2ee6a6" stroke-width="2"/>
+                <text x="166" y="156" font-family="JetBrains Mono,monospace" font-size="8" fill="#2ee6a6">OSPF Area0</text>
+                <rect x="90" y="168" width="120" height="28" rx="4" fill="#11161d" stroke="#2ee6a6" stroke-width="1.5"/>
+                <text x="150" y="186" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#cdd9e3">MULTI-AREA BACKBONE</text>
+                <path d="M150,196 L150,222" stroke="#5d7186" stroke-width="2"/>
+                <rect x="95" y="222" width="110" height="40" rx="4" fill="#11161d" stroke="#ffb454" stroke-width="1.5"/>
+                <text x="150" y="238" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#cdd9e3">DMZ WEB SRV</text>
+                <text x="150" y="251" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#ffb454">VLAN200 · TCP/80 · ACL</text>
+                <circle r="3.5" fill="#2ee6a6"><animateMotion path="M80,58 L150,108 L150,138 L150,168 L150,196 L150,222" dur="4.5s" repeatCount="indefinite"/></circle>
+              </svg>
+            </div>
+            <div class="diagram-caption">dual-homed edge → OSPF backbone → DMZ</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="project-card term-block">
+      <div class="term-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="prompt-cmd">Router# show spanning-tree summary</span></div>
+      <div class="term-body">
+        <div class="project-grid">
+          <div>
+            <div class="label-eyebrow">Redundant Enterprise Campus Network Architecture</div>
+            <p class="prose" style="font-size:14px; margin:0 0 14px; color:var(--text);">A campus backbone built the way real enterprises design their core: no single switch, link, or path is ever allowed to take the whole network down with it.</p>
+            <ul class="feature-list">
+              <li>A high-availability "Triangle" Core built from three Cisco 3650 Layer 3 switches, fully meshed so any one switch or link can fail without anyone losing connectivity.</li>
+              <li>STP priorities tuned by hand (4096 / 8192 / 12288) so the topology always knows exactly which switch is in charge, paired with LACP (802.3ad) EtherChannels that bundle multiple physical links into one fast, resilient logical path.</li>
+              <li>Inter-VLAN routing through SVIs with DHCP relay (ip helper-address) keeps Student (VLAN 10), Staff (VLAN 20), and Management (VLAN 99) traffic cleanly separated, while every device still gets an IP address automatically.</li>
+              <li>BPDU Guard and PortFast on access ports stop accidental loops before they start; Root Guard on the core downlinks blocks any rogue switch from hijacking the spanning-tree topology.</li>
+              <li>A routed point-to-point /30 link (no switchport) ties the core directly into a Cisco ISR4321 router, giving the whole campus verified, end-to-end reachability out to the WAN.</li>
+            </ul>
+          </div>
+          <div>
+            <div class="diagram-wrap">
+              <svg viewBox="0 0 300 280" width="100%" xmlns="http://www.w3.org/2000/svg">
+                <path d="M150,40 L50,210 L250,210 Z" fill="none" stroke="#049fd9" stroke-width="3"/>
+                <rect x="118" y="20" width="64" height="26" rx="3" fill="#11161d" stroke="#2ee6a6" stroke-width="1.5"/>
+                <text x="150" y="37" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#cdd9e3">SW1 ★</text>
+                <text x="150" y="14" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#2ee6a6">ROOT · pri 4096</text>
+                <rect x="18" y="198" width="64" height="26" rx="3" fill="#11161d" stroke="#5d7186" stroke-width="1.5"/>
+                <text x="50" y="215" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#cdd9e3">SW2</text>
+                <text x="50" y="234" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#5d7186">pri 8192</text>
+                <rect x="218" y="198" width="64" height="26" rx="3" fill="#11161d" stroke="#5d7186" stroke-width="1.5"/>
+                <text x="250" y="215" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#cdd9e3">SW3</text>
+                <text x="250" y="234" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#5d7186">pri 12288</text>
+                <text x="150" y="255" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#ffb454">VLAN10 STUDENT · VLAN20 STAFF · VLAN99 MGMT</text>
+                <text x="150" y="270" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#5d7186">SVI routing + DHCP relay</text>
+                <circle r="3.5" fill="#2ee6a6"><animateMotion path="M150,40 L50,210 L250,210 Z" dur="5s" repeatCount="indefinite"/></circle>
+              </svg>
+            </div>
+            <div class="diagram-caption">Triangle Core — zero single points of failure</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="project-card term-block">
+      <div class="term-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="prompt-cmd">Router# show ip route static</span></div>
+      <div class="term-body">
+        <div class="project-grid">
+          <div>
+            <div class="label-eyebrow">Enterprise Multi-Site Network Architecture</div>
+            <p class="prose" style="font-size:14px; margin:0 0 14px; color:var(--text);">Built to mirror how a growing company connects new branch offices back to one central site without re-cabling everything — a single physical link doing the work of several.</p>
+            <ul class="feature-list">
+              <li>A hub-and-spoke WAN where 802.1Q encapsulation (router-on-a-stick) lets one trunk link carry traffic for multiple departments at once, with the router sorting and routing between them.</li>
+              <li>IP addressing sized exactly to need using VLSM — /28 for each branch LAN, /30 for the point-to-point links between sites — instead of wasting address space.</li>
+              <li>Static routing ties every site back together end-to-end, including a verified path out to public DNS (8.8.8.8).</li>
+            </ul>
+          </div>
+          <div>
+            <div class="diagram-wrap">
+              <svg viewBox="0 0 300 280" width="100%" xmlns="http://www.w3.org/2000/svg">
+                <rect x="118" y="24" width="64" height="28" rx="4" fill="#11161d" stroke="#049fd9" stroke-width="1.5"/>
+                <text x="150" y="42" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#cdd9e3">HUB-RTR</text>
+                <path d="M150,52 L40,190" stroke="#2ee6a6" stroke-width="1.5"/>
+                <path d="M150,52 L150,190" stroke="#2ee6a6" stroke-width="1.5"/>
+                <path d="M150,52 L260,190" stroke="#2ee6a6" stroke-width="1.5"/>
+                <rect x="2" y="190" width="76" height="30" rx="4" fill="#11161d" stroke="#5d7186" stroke-width="1.5"/>
+                <text x="40" y="208" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#cdd9e3">BRANCH A</text>
+                <text x="40" y="232" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7.5" fill="#ffb454">VLAN10 /28</text>
+                <rect x="112" y="190" width="76" height="30" rx="4" fill="#11161d" stroke="#5d7186" stroke-width="1.5"/>
+                <text x="150" y="208" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#cdd9e3">BRANCH B</text>
+                <text x="150" y="232" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7.5" fill="#ffb454">VLAN20 /28</text>
+                <rect x="222" y="190" width="76" height="30" rx="4" fill="#11161d" stroke="#5d7186" stroke-width="1.5"/>
+                <text x="260" y="208" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#cdd9e3">BRANCH C</text>
+                <text x="260" y="232" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7.5" fill="#ffb454">VLAN30 /28</text>
+                <text x="150" y="170" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#2ee6a6">802.1Q trunk (router-on-a-stick)</text>
+                <text x="150" y="258" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#5d7186">VLSM /28 LANs · /30 links · static route to 8.8.8.8</text>
+                <circle r="3.5" fill="#2ee6a6"><animateMotion path="M150,52 L40,190" dur="3.2s" repeatCount="indefinite"/></circle>
+              </svg>
+            </div>
+            <div class="diagram-caption">hub-and-spoke WAN over 802.1Q trunks</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" id="skills">
+    <div class="label-eyebrow">10.0.3.0/24 · SKILLS</div>
+    <h2 class="h2">show ip protocols</h2>
+    <div class="flowline"><div class="track"></div><div class="packet"></div></div>
+    <div class="term-block">
+      <div class="term-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="prompt-cmd">Router# show ip protocols | all up</span></div>
+      <div class="term-body">
+        <div class="skill-group">
+          <div class="skill-group-title">networking &amp; security</div>
+          <div class="skill-row" id="net-skills"></div>
+        </div>
+        <div class="skill-group">
+          <div class="skill-group-title">programming &amp; tools</div>
+          <div class="skill-row" id="tool-skills"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" id="cert">
+    <div class="label-eyebrow">CERTIFICATION</div>
+    <h2 class="h2">show interfaces status</h2>
+    <div class="term-block">
+      <div class="term-body">
+        <table class="iface-table">
+          <thead><tr><th>Interface</th><th>Status</th><th>Protocol</th></tr></thead>
+          <tbody><tr><td>Cert0/0 — CCNA</td><td><span class="led-amber"></span>in training</td><td>in progress</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" id="contact" style="border-bottom:none">
+    <div class="label-eyebrow">10.0.4.0/24 · CONTACT</div>
+    <h2 class="h2">ping reachability</h2>
+    <div class="term-block">
+      <!-- name filled in -->
+      <div class="term-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="prompt-cmd">Router# ping Resat Orhun Konak</span></div>
+      <div class="term-body">
+        <div class="ping-line">Reply from Resat Orhun Konak: bytes=32 time&lt;1ms TTL=128 <span class="ok">✓</span></div>
+        <div class="ping-line">Reply from Resat Orhun Konak: bytes=32 time&lt;1ms TTL=128 <span class="ok">✓</span></div>
+        <div class="ping-line">Reply from Resat Orhun Konak: bytes=32 time&lt;1ms TTL=128 <span class="ok">✓</span></div>
+        <div class="ping-line">Reply from Resat Orhun Konak: bytes=32 time&lt;1ms TTL=128 <span class="ok">✓</span></div>
+        <div class="ping-summary">Packets: Sent = 4, Received = 4, Lost = 0 (0% loss)</div>
+        <div class="contact-actions">
+          <a class="btn" href="mailto:konakresat@gmail.com">message · email</a>
+          <a class="btn" href="https://www.linkedin.com/in/resatorhunkonak/" target="_blank" rel="noreferrer">connect · LinkedIn</a>
+          <a class="btn" href="https://github.com/ResatOrhun" target="_blank" rel="noreferrer">connect · GitHub</a>
+          <a class="btn" href="cv.pdf" download="Resat-Orhun-Konak-CV.pdf">download · CV</a>
+        </div>
+        <div class="console">
+          <div class="console-row">
+            <span class="prompt">Router&gt;</span>
+            <input id="console-input" placeholder="type a command… (try '?')" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="console-response error" id="console-error"><span style="color:var(--red)">^</span><br/>% Invalid input detected at '^' marker.</div>
+          <div class="secret-panel" id="secret-panel" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>AS 65000 · loop-free since 2022 · © 2026 Resat Orhun Konak — All rights reserved</footer>
+</div>
+
+<script>
+const NET_SKILLS = ['eBGP','Multi-Area OSPF','Route Redistribution','Floating Static Routes','Inter-VLAN Routing (SVIs)','L3 Switch Stacking','Router-on-a-Stick (802.1Q)','EtherChannel (LACP)','Static NAT','PAT Overload','Extended ACLs','TCP Flag Matching (established)','RPVST+','STP Tuning (Root Bridge)','BPDU Guard','Root Guard','PortFast','DHCP Relay'];
+const TOOL_SKILLS = ['C','Java','Python','MATLAB','Cisco Packet Tracer','GitLab','Oracle SQL Server','Microsoft Office'];
+function pill(s){ const d=document.createElement('span'); d.className='skill-pill'; d.innerHTML='<span class="led"></span>'+s; return d; }
+document.getElementById('net-skills').append(...NET_SKILLS.map(pill));
+document.getElementById('tool-skills').append(...TOOL_SKILLS.map(pill));
+
+// boot sequence
+const LINES = [
+  'System Bootstrap, Version 15.2(SARELEASE), RELEASE SOFTWARE (fc1)',
+  'Initializing hardware... done.',
+  'Loading "flash:portfolio.bin"... done.',
+  '',
+  '%LINK-3-UPDOWN: Interface GigabitEthernet0/0, changed state to up',
+  '%OSPF-5-ADJCHG: Process 1, Nbr 10.0.0.1 from LOADING to FULL',
+  '',
+  'Loading personnel record... Resat Orhun Konak',
+  'Role           : Aspiring Network Engineer',
+  'Certification  : CCNA — in progress',
+  'Status         : ONLINE',
+  ''
+];
+const bootLinesEl = document.getElementById('boot-lines');
+const bootPromptEl = document.getElementById('boot-prompt');
+const bootEl = document.getElementById('boot');
+const siteEl = document.getElementById('site');
+let doneTyping = false;
+
+function typeLines(i){
+  if(i >= LINES.length){ doneTyping = true; bootPromptEl.style.display='block'; return; }
+  const line = LINES[i];
+  const div = document.createElement('div');
+  div.className = 'boot-line';
+  if(line.startsWith('%')){ div.innerHTML = '<span class="dim"></span>'; div.querySelector('.dim').textContent = line; }
+  else { div.textContent = line; }
+  bootLinesEl.appendChild(div);
+  setTimeout(()=>typeLines(i+1), line==='' ? 120 : 220);
+}
+setTimeout(()=>typeLines(0), 300);
+
+function reveal(){
+  bootEl.classList.add('fading');
+  setTimeout(()=>{ bootEl.style.display='none'; siteEl.classList.add('visible'); }, 400);
+}
+bootEl.addEventListener('click', ()=>{ if(doneTyping) reveal(); });
+document.addEventListener('keydown', (e)=>{ if(e.key==='Enter' && doneTyping) reveal(); });
+document.getElementById('skip-btn').addEventListener('click', (e)=>{ e.stopPropagation(); reveal(); });
+
+// nav scroll + scrollspy
+document.querySelectorAll('.nav-route').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.getElementById(btn.dataset.target)?.scrollIntoView({behavior:'smooth'});
+  });
+});
+const navRoutes = document.querySelectorAll('.nav-route');
+const sections = ['about','experience','projects','skills','contact'].map(id=>document.getElementById(id));
+const observer = new IntersectionObserver((entries)=>{
+  entries.forEach(entry=>{
+    if(entry.isIntersecting){
+      navRoutes.forEach(b=>b.classList.toggle('active', b.dataset.target===entry.target.id));
+    }
+  });
+}, { rootMargin: '-40% 0px -50% 0px' });
+sections.forEach(s=>s && observer.observe(s));
+
+// easter egg — add more commands to this map any time you want
+const consoleInput = document.getElementById('console-input');
+const consoleError = document.getElementById('console-error');
+const secretPanel = document.getElementById('secret-panel');
+
+const COMMANDS = {
+  'enable': {
+    tag: 'Router# — privileged mode',
+    html: "Every network I touch gets treated like it's already in production: documented, redundant, and built so it doesn't depend on me being in the room. That's the standard I'm bringing into my first role."
+  },
+  'show version': {
+    tag: 'Router# show version',
+    pre: `Resat Orhun Konak Operating System
+ROK-OS, Version 1.0(CCNA), RELEASE SOFTWARE
+System uptime: building since 2022 — always learning, never idle
+Configuration register: 0xRELIABLE`
+  },
+  'traceroute': {
+    tag: 'Router# traceroute next-role',
+    pre: `Tracing route to NEXT-ROLE over a maximum of 4 hops:
+
+ 1   <1 ms  <1 ms  <1 ms  politecnico-di-torino.edu
+ 2   <1 ms  <1 ms  <1 ms  ccna-certification.local
+ 3   <1 ms  <1 ms  <1 ms  polimi-internet-engineering.it
+ 4    *      *      *     Request timed out (next hop: your company here)
+
+Trace incomplete — route still being built. Get in touch below to complete it.`
+  },
+  'help': {
+    tag: 'Router# ?',
+    pre: `Available commands:
+  enable          a short statement on how I work
+  show version    system version
+  traceroute      where this career path is headed
+  ?               show this help`
+  },
+};
+COMMANDS['?'] = COMMANDS['help'];
+
+consoleInput.addEventListener('keydown', (e)=>{
+  if(e.key !== 'Enter') return;
+  const v = consoleInput.value.trim().toLowerCase();
+  consoleInput.value = '';
+  const cmd = COMMANDS[v];
+  if(cmd){
+    consoleError.style.display = 'none';
+    secretPanel.style.display = 'block';
+    secretPanel.innerHTML =
+      `<span class="tag-line">${cmd.tag}</span>` +
+      (cmd.pre
+        ? `<pre style="white-space:pre-wrap;font-family:var(--mono);font-size:12.5px;margin:0;color:var(--text);">${cmd.pre}</pre>`
+        : cmd.html);
+  } else {
+    secretPanel.style.display = 'none';
+    consoleError.style.display = 'block';
+  }
+});
+</script>
+</body>
+</html>
