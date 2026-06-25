@@ -5,7 +5,7 @@ load, navigation rendered as a routing table, and three network engineering
 projects presented as animated topology diagrams rather than static
 screenshots.
 
-[**Live site:**](https://resatorhun.github.io/personal-portfolio-webpage/)
+[**Click HERE to view the Live site**](https://resatorhun.github.io/personal-portfolio-webpage/)
 
 ## Overview
 
